@@ -1,30 +1,35 @@
 package io.sesgoe.ffxivmarkethistory.datatype
 
-import com.google.gson.annotations.SerializedName
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.Transient
 
+@Serializable
 data class History(
-        @SerializedName("Added")
+        @SerialName("Added")
         val addedTimeInSeconds : Long,
-        @SerializedName("ID")
+        @SerialName("ID")
         val transactionId : String,
-        @SerializedName("IsHQ")
+        @SerialName("IsHQ")
         val isHighQuality : Boolean,
-        @SerializedName("PricePerUnit")
+        @SerialName("PricePerUnit")
         val pricePerUnit: Int,
-        @SerializedName("PriceTotal")
+        @SerialName("PriceTotal")
         val priceTotal: Int,
-        @SerializedName("PurchaseDate")
+        @SerialName("PurchaseDate")
         val purchaseTimeInSeconds: Long,
-        @SerializedName("Quantity")
+        @SerialName("Quantity")
         val quantity: Int
 ) {
-        val addedTimeInMillis : Long
-                get() = addedTimeInSeconds * 1000
-        val purchaseTimeInMillis : Long
-                get() = purchaseTimeInSeconds * 1000
+
+        @Transient
+        val addedTimeInMillis = addedTimeInSeconds * 1000
+        @Transient
+        val purchaseTimeInMillis = purchaseTimeInSeconds * 1000
 }
 
+@Serializable
 data class HistoryResponse(
-        @SerializedName("History")
+        @SerialName("History")
         val historyList: List<History>
 )

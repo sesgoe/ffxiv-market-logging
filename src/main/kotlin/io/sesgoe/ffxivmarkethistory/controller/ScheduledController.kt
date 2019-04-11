@@ -1,17 +1,16 @@
 package io.sesgoe.ffxivmarkethistory.controller
 
 import com.google.common.util.concurrent.RateLimiter
-import com.google.gson.Gson
-import io.sesgoe.ffxivmarkethistory.constant.FFXIV_API_BASEURL
-import io.sesgoe.ffxivmarkethistory.constant.FFXIV_API_PRIVATE_KEY
-import io.sesgoe.ffxivmarkethistory.constant.SERVER_NAME
-import io.sesgoe.ffxivmarkethistory.constants.OreTypeResponse
-import io.sesgoe.ffxivmarkethistory.constants.oreTypesList
+import io.sesgoe.ffxivmarkethistory.constant.*
 import io.sesgoe.ffxivmarkethistory.datatype.History
 import io.sesgoe.ffxivmarkethistory.datatype.HistoryResponse
 import io.sesgoe.ffxivmarkethistory.table.HistoryTable
 import khttp.get
-import org.jetbrains.exposed.sql.*
+import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.batchInsert
+import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.joda.time.DateTime
 import org.springframework.scheduling.annotation.Scheduled
@@ -38,7 +37,7 @@ class ScheduledController {
                         headers = mapOf("User-Agent" to "<User-Agent>")
                     )
 
-        val historyResponse = Gson().fromJson(request.text, HistoryResponse::class.java)
+        val historyResponse = Json.nonstrict.parse(HistoryResponse.serializer(), request.text)
 
         return historyResponse.historyList
 
@@ -51,25 +50,59 @@ class ScheduledController {
 
         val startTime = System.currentTimeMillis()
         val rateLimiter = RateLimiter.create(5.0)
+        var totalNewRows = 0
 
         for(i in oreTypesList.results.indices) {
             rateLimiter.acquire()
-            val id = oreTypesList.results[i].id
-            val name = oreTypesList.results[i].name
-            insertIntoDatabase(id, name, getHistory(id))
+            val itemId = oreTypesList.results[i].id
+            val itemName = oreTypesList.results[i].name
+            val itemHistoryList = getHistory(itemId)
+            val transactionIdList = extractTransactionIdsFromItemHistoryList(itemHistoryList)
+
+            totalNewRows += getNewRowCountForListOfTransactionIds(transactionIdList)
+
+            batchInsertIntoDatabase(
+                    itemId = itemId,
+                    itemName = itemName,
+                    historyList = itemHistoryList
+            )
             if(i % 10 == 0) {
-                println("Batch ${i / 10} complete of ${oreTypesList.results.size / 10}")
+                println("Batch ${(i / 10) + 1} complete of ${(oreTypesList.results.size / 10) + 1}")
             }
         }
         val endTime = System.currentTimeMillis()
 
         println("History pull complete. Time to execute: ${endTime - startTime}")
+        println("New rows added: $totalNewRows")
 
     }
 
-    fun insertIntoDatabase(itemId: Int, name: String, historyList : List<History>) {
+    fun extractTransactionIdsFromItemHistoryList(itemHistoryList: List<History>) = itemHistoryList.map { it.transactionId }.toList()
 
-        val db = Database.connect(
+    fun getNewRowCountForListOfTransactionIds(transactionIds: List<String>) : Int {
+
+        Database.connect(
+                url = "jdbc:postgresql://localhost:5432/postgres",
+                driver = "org.postgresql.Driver",
+                user = "postgres",
+                password = "docker"
+        )
+
+        var queryCount = 0
+
+        transaction {
+            queryCount = HistoryTable.select {
+                HistoryTable.transactionId.inList(transactionIds)
+            }.count()
+        }
+
+        return transactionIds.size - queryCount
+
+    }
+
+    fun batchInsertIntoDatabase(itemId: Int, itemName: String, historyList : List<History>) {
+
+        Database.connect(
                 url = "jdbc:postgresql://localhost:5432/postgres",
                 driver = "org.postgresql.Driver",
                 user = "postgres",
@@ -83,7 +116,7 @@ class ScheduledController {
             HistoryTable.batchInsert(historyList, ignore = true) { history ->
                 this[HistoryTable.transactionId] = history.transactionId
                 this[HistoryTable.itemId] = itemId
-                this[HistoryTable.itemName] = name
+                this[HistoryTable.itemName] = itemName
                 this[HistoryTable.addedTimeStamp] = DateTime(history.addedTimeInMillis)
                 this[HistoryTable.purchasedTimeStamp] = DateTime(history.purchaseTimeInMillis)
                 this[HistoryTable.pricePerUnit] = history.pricePerUnit
@@ -91,6 +124,7 @@ class ScheduledController {
                 this[HistoryTable.quantity] = history.quantity
                 this[HistoryTable.isHighQuality] = history.isHighQuality
             }
+
         }
 
     }
