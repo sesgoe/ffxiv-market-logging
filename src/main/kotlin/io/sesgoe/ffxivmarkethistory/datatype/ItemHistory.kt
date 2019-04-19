@@ -5,7 +5,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.Transient
 
 @Serializable
-data class History(
+data class ItemHistory(
         @SerialName("Added")
         val addedTimeInSeconds : Long,
         @SerialName("ID")
@@ -28,8 +28,9 @@ data class History(
         val purchaseTimeInMillis = purchaseTimeInSeconds * 1000
 }
 
+
 @Serializable
-data class HistoryResponse(
+data class ItemHistoryResponse(
         @SerialName("History")
-        val historyList: List<History>
+        val itemHistoryList: List<ItemHistory>
 )
