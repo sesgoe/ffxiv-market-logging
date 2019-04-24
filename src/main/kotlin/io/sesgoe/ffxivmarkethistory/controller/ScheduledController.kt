@@ -1,6 +1,7 @@
 package io.sesgoe.ffxivmarkethistory.controller
 
 import com.google.common.util.concurrent.RateLimiter
+import io.sesgoe.ffxivmarkethistory.constant.SERVER_LIST
 import io.sesgoe.ffxivmarkethistory.database.batchInsertItemHistoryListIntoDatabase
 import io.sesgoe.ffxivmarkethistory.database.getItemListFromDatabase
 import io.sesgoe.ffxivmarkethistory.database.getNewRowCountForListOfTransactionIds
@@ -43,19 +44,26 @@ class ScheduledController {
         val itemList = getItemListFromDatabase()
 
         for(i in itemList.indices) {
-            rateLimiter.acquire()
-            val itemHistoryList = getHistoryForItemId(itemList[i].id)
-            val transactionIdList = extractTransactionIdsFromItemHistoryList(itemHistoryList)
+            for(server in SERVER_LIST) {
 
-            totalNewRows += getNewRowCountForListOfTransactionIds(transactionIdList)
+                rateLimiter.acquire()
+                val itemHistoryList = getHistoryForItemId(itemList[i].id, server)
+                if(itemHistoryList.isEmpty()) {
+                    continue
+                }
+                val transactionIdList = extractTransactionIdsFromItemHistoryList(itemHistoryList)
 
-            batchInsertItemHistoryListIntoDatabase(
-                    itemId = itemList[i].id,
-                    itemHistoryList = itemHistoryList
-            )
+                totalNewRows += getNewRowCountForListOfTransactionIds(transactionIdList)
+
+                batchInsertItemHistoryListIntoDatabase(
+                        itemId = itemList[i].id,
+                        server = server,
+                        itemHistoryList = itemHistoryList
+                )
+            }
 
             if((i > 0 && i % 100 == 0) || i == itemList.lastIndex) {
-                logger.info("Completed History Pull for $i of ${itemList.size} items.")
+                logger.info("Completed History Pull for $i of ${itemList.size} items for all servers.")
             }
 
         }

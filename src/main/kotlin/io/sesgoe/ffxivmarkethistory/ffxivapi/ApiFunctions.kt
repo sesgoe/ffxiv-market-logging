@@ -3,7 +3,6 @@ package io.sesgoe.ffxivmarkethistory.ffxivapi
 import com.google.common.util.concurrent.RateLimiter
 import io.sesgoe.ffxivmarkethistory.constant.FFXIV_API_BASEURL
 import io.sesgoe.ffxivmarkethistory.constant.FFXIV_API_PRIVATE_KEY
-import io.sesgoe.ffxivmarkethistory.constant.SERVER_NAME
 import io.sesgoe.ffxivmarkethistory.datatype.*
 import khttp.get
 import kotlinx.serialization.json.Json
@@ -54,14 +53,18 @@ fun getItemsForCategoryId(categoryId : Int) : List<Item> {
 
 fun convertApiItemListToItemList(apiItemList: List<ApiItem>, itemCategory : Int) : List<Item> = apiItemList.map{Item(it.id, it.name, itemCategory)}.toList()
 
-fun getHistoryForItemId(itemId: Int) : List<ItemHistory> {
+fun getHistoryForItemId(itemId: Int, server: Server) : List<ItemHistory> {
 
-    val url = "$FFXIV_API_BASEURL/market/$SERVER_NAME/item/$itemId?private_key=$FFXIV_API_PRIVATE_KEY"
+    val url = "$FFXIV_API_BASEURL/market/${server.name}/item/$itemId?private_key=$FFXIV_API_PRIVATE_KEY"
 
     val request = get(
             url = url,
             headers = userAgentMap
     )
+
+    if(request.statusCode != 200) {
+        return emptyList()
+    }
 
     val historyResponse = Json.nonstrict.parse(ItemHistoryResponse.serializer(), request.text)
 

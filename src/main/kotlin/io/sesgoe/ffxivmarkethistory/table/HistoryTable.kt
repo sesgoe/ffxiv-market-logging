@@ -12,4 +12,5 @@ object HistoryTable : Table() {
     val quantity = integer("quantity")
     val isHighQuality = bool("ishighquality")
     val insertTimeStamp = datetime("inserttimestamp")
+    val serverId = integer("serverid")
 }

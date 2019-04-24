@@ -1,11 +1,14 @@
 package io.sesgoe.ffxivmarkethistory.database
 
+import io.sesgoe.ffxivmarkethistory.constant.SERVER_LIST
 import io.sesgoe.ffxivmarkethistory.datatype.Item
 import io.sesgoe.ffxivmarkethistory.datatype.ItemCategory
 import io.sesgoe.ffxivmarkethistory.datatype.ItemHistory
+import io.sesgoe.ffxivmarkethistory.datatype.Server
 import io.sesgoe.ffxivmarkethistory.table.CategoryTable
 import io.sesgoe.ffxivmarkethistory.table.HistoryTable
 import io.sesgoe.ffxivmarkethistory.table.ItemTable
+import io.sesgoe.ffxivmarkethistory.table.ServerTable
 import org.jetbrains.exposed.sql.*
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.joda.time.DateTime
@@ -25,6 +28,12 @@ fun createTables() {
         SchemaUtils.create(CategoryTable)
         SchemaUtils.create(ItemTable)
         SchemaUtils.create(HistoryTable)
+        SchemaUtils.create(ServerTable)
+
+        ServerTable.batchInsert(SERVER_LIST, ignore = true) { server ->
+            this[ServerTable.id] = server.id
+            this[ServerTable.name] = server.name
+        }
     }
 }
 
@@ -50,7 +59,7 @@ fun batchInsertItemListIntoDatabase(itemList: List<Item>) {
     }
 }
 
-fun batchInsertItemHistoryListIntoDatabase(itemId: Int, itemHistoryList : List<ItemHistory>) {
+fun batchInsertItemHistoryListIntoDatabase(itemId: Int, server: Server, itemHistoryList : List<ItemHistory>) {
     connectToDatabase()
     transaction {
         HistoryTable.batchInsert(itemHistoryList, ignore = true) { history ->
@@ -63,6 +72,7 @@ fun batchInsertItemHistoryListIntoDatabase(itemId: Int, itemHistoryList : List<I
             this[HistoryTable.quantity] = history.quantity
             this[HistoryTable.isHighQuality] = history.isHighQuality
             this[HistoryTable.insertTimeStamp] = DateTime(System.currentTimeMillis())
+            this[HistoryTable.serverId] = server.id
         }
     }
 }
